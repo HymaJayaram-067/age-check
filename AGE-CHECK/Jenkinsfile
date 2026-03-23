@@ -1,0 +1,103 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = "age-check-api"
+        IMAGE_NAME = "age-check-api"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        K8S_NAMESPACE = "age-check"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'python3 -m pip install --upgrade pip'
+                        sh 'python3 -m pip install -r requirements.txt'
+                    } else {
+                        bat 'python -m pip install --upgrade pip'
+                        bat 'pip install -r requirements.txt'
+                    }
+                }
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'pytest --junitxml=pytest-report.xml'
+                    } else {
+                        bat 'pytest --junitxml=pytest-report.xml'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit 'pytest-report.xml'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube-server') {
+                    script {
+                        if (isUnix()) {
+                            sh 'sonar-scanner -Dsonar.project.settings=sonar-project.properties'
+                        } else {
+                            bat 'sonar-scanner -Dsonar.project.settings=sonar-project.properties'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
+                        sh 'docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest'
+                    } else {
+                        bat 'docker build -t %IMAGE_NAME%:%IMAGE_TAG% .'
+                        bat 'docker tag %IMAGE_NAME%:%IMAGE_TAG% %IMAGE_NAME%:latest'
+                    }
+                }
+            }
+        }
+
+        stage('Build Into Minikube Docker') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'minikube image build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
+                        sh 'minikube image build -t ${IMAGE_NAME}:latest .'
+                    } else {
+                        bat 'minikube image build -t %IMAGE_NAME%:%IMAGE_TAG% .'
+                        bat 'minikube image build -t %IMAGE_NAME%:latest .'
+                    }
+                }
+            }
+        }
+
+        stage('Apply ArgoCD Application') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'kubectl apply -f argocd/application.yaml'
+                    } else {
+                        bat 'kubectl apply -f argocd/application.yaml'
+                    }
+                }
+            }
+        }
+    }
+}

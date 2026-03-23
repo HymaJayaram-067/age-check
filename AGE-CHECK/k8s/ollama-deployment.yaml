@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: age-check-ollama
+  namespace: age-check
+  labels:
+    app: age-check-ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: age-check-ollama
+  template:
+    metadata:
+      labels:
+        app: age-check-ollama
+    spec:
+      initContainers:
+        - name: pull-model
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_MODEL
+              value: "llama3"
+          command: ["sh", "-c", "ollama pull ${OLLAMA_MODEL}"]
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 20
+            periodSeconds: 20
+      volumes:
+        - name: ollama-data
+          emptyDir: {}

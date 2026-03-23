@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: age-check-api
+  namespace: age-check
+  labels:
+    app: age-check-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: age-check-api
+  template:
+    metadata:
+      labels:
+        app: age-check-api
+    spec:
+      containers:
+      - name: age-check-api
+        image: age-check-api:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ENABLE_LLM
+          value: "true"
+        - name: LLM_PROVIDER
+          value: "ollama"
+        - name: OLLAMA_BASE_URL
+          value: "http://age-check-ollama:11434"
+        - name: OLLAMA_MODEL
+          value: "llama3"
+        - name: LLM_TIMEOUT_SECONDS
+          value: "90"
+        ports:
+        - containerPort: 8000
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
