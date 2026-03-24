@@ -61,32 +61,23 @@ pipeline {
             steps {
                 dir('AGE-CHECK') {
                     withSonarQubeEnv('sonarqube-server') {
-                        script {
-                            if (isUnix()) {
-                                sh 'sonar-scanner -Dproject.settings=sonar-project.properties'
-                            } else {
-                                bat 'sonar-scanner -Dproject.settings=sonar-project.properties'
+                        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                            script {
+                                if (isUnix()) {
+                                    sh '''
+                                    sonar-scanner \
+                                      -Dproject.settings=sonar-project.properties \
+                                      -Dsonar.login=$SONAR_TOKEN
+                                    '''
+                                } else {
+                                    bat 'sonar-scanner -Dproject.settings=sonar-project.properties -Dsonar.login=%SONAR_TOKEN%'
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        stage('SonarQube Analysis') {
-    steps {
-        dir('AGE-CHECK') {
-            withSonarQubeEnv('sonarqube-server') {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    sh '''
-                    sonar-scanner \
-                      -Dproject.settings=sonar-project.properties \
-                      -Dsonar.login=$SONAR_TOKEN
-                    '''
-                }
-            }
-        }
-    }
-}
 
         stage('Quality Gate') {
             steps {
