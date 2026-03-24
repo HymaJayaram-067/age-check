@@ -2,30 +2,25 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME        = "age-check-api"
-        IMAGE_NAME      = "age-check-api"
-        IMAGE_TAG       = "${env.BUILD_NUMBER}"
-        K8S_NAMESPACE   = "age-check"
+        APP_NAME      = "age-check-api"
+        IMAGE_NAME    = "age-check-api"
+        IMAGE_TAG     = "${env.BUILD_NUMBER}"
+        K8S_NAMESPACE = "age-check"
     }
 
     stages {
 
-        // ─────────────────────────────────────────
-        // Stage 1 : Checkout source code
-        // ─────────────────────────────────────────
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 2 : Install Python dependencies
-        // ─────────────────────────────────────────
         stage('Install Dependencies') {
             steps {
                 script {
                     if (isUnix()) {
+                        sh 'python3 -m ensurepip --upgrade || true'
                         sh 'python3 -m pip install --upgrade pip'
                         sh 'python3 -m pip install -r requirements.txt'
                         sh 'python3 -m pip install pytest-cov'
@@ -38,27 +33,6 @@ pipeline {
             }
         }
 
-
-        stage('Install Dependencies') {
-    steps {
-        script {
-            if (isUnix()) {
-                sh 'python3 -m ensurepip --upgrade'
-                sh 'python3 -m pip install --upgrade pip'
-                sh 'python3 -m pip install -r requirements.txt'
-                sh 'python3 -m pip install pytest-cov'
-            } else {
-                bat 'python -m pip install --upgrade pip'
-                bat 'pip install -r requirements.txt'
-                bat 'pip install pytest-cov'
-            }
-        }
-    }
-}
-
-        // ─────────────────────────────────────────
-        // Stage 3 : Run unit tests + coverage
-        // ─────────────────────────────────────────
         stage('Unit Tests') {
             steps {
                 script {
@@ -76,15 +50,11 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 4 : SonarQube static code analysis
-        // ─────────────────────────────────────────
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
                     script {
                         if (isUnix()) {
-                            // Fixed flag: -Dproject.settings (not -Dsonar.project.settings)
                             sh 'sonar-scanner -Dproject.settings=sonar-project.properties'
                         } else {
                             bat 'sonar-scanner -Dproject.settings=sonar-project.properties'
@@ -94,9 +64,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 5 : Wait for SonarQube Quality Gate
-        // ─────────────────────────────────────────
         stage('Quality Gate') {
             steps {
                 timeout(time: 2, unit: 'MINUTES') {
@@ -105,26 +72,20 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 6 : Build Docker image (local daemon)
-        // ─────────────────────────────────────────
         stage('Docker Build') {
             steps {
                 script {
                     if (isUnix()) {
                         sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
-                        sh 'docker tag  ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest'
+                        sh 'docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest'
                     } else {
                         bat 'docker build -t %IMAGE_NAME%:%IMAGE_TAG% .'
-                        bat 'docker tag  %IMAGE_NAME%:%IMAGE_TAG% %IMAGE_NAME%:latest'
+                        bat 'docker tag %IMAGE_NAME%:%IMAGE_TAG% %IMAGE_NAME%:latest'
                     }
                 }
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 7 : Load image into Minikube
-        // ─────────────────────────────────────────
         stage('Build Into Minikube Docker') {
             steps {
                 script {
@@ -139,9 +100,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 8 : Apply ArgoCD application manifest
-        // ─────────────────────────────────────────
         stage('Apply ArgoCD Application') {
             steps {
                 script {
@@ -155,15 +113,12 @@ pipeline {
         }
     }
 
-    // ─────────────────────────────────────────────
-    // Post : Notify result after all stages finish
-    // ─────────────────────────────────────────────
     post {
         success {
-            echo '✅ Pipeline completed successfully! Image: ${IMAGE_NAME}:${IMAGE_TAG}'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed! Check the logs above for details.'
+            echo '❌ Pipeline failed! Check the logs above.'
         }
         always {
             echo '🔁 Pipeline finished. Build #${IMAGE_TAG}'
