@@ -72,6 +72,21 @@ pipeline {
                 }
             }
         }
+        stage('SonarQube Analysis') {
+    steps {
+        dir('AGE-CHECK') {
+            withSonarQubeEnv('sonarqube-server') {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                    sonar-scanner \
+                      -Dproject.settings=sonar-project.properties \
+                      -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+    }
+}
 
         stage('Quality Gate') {
             steps {
